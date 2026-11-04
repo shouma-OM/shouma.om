@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "admabthalat@gmail.com"
+      );
+    }
+
+    // Validation functions
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.username is string && data.username.size() >= 2 && data.username.size() <= 64 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 128)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('role' in data) || (data.role in ['user', 'guide', 'hotel_manager', 'admin'])) &&
+             data.createdAt is string && data.createdAt.size() <= 50;
+    }
+
+    function isValidBooking(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.hotelName is string && data.hotelName.size() <= 120 &&
+             data.guestName is string && data.guestName.size() <= 100 &&
+             data.totalPrice is number && data.totalPrice >= 0 &&
+             data.status in ['confirmed', 'pending', 'cancelled'] &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             (!('hotelId' in data) || (data.hotelId is string && data.hotelId.size() <= 64)) &&
+             (!('guestPhone' in data) || (data.guestPhone is string && data.guestPhone.size() <= 30)) &&
+             (!('guestEmail' in data) || (data.guestEmail is string && data.guestEmail.size() <= 120)) &&
+             (!('checkIn' in data) || (data.checkIn is string && data.checkIn.size() <= 30)) &&
+             (!('checkOut' in data) || (data.checkOut is string && data.checkOut.size() <= 30)) &&
+             (!('nights' in data) || data.nights is number) &&
+             (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 80));
+    }
+
+    function isValidCustomPlan(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 150 &&
+             data.duration is number && data.duration >= 1 &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             (!('budget' in data) || (data.budget is string && data.budget.size() <= 50)) &&
+             (!('governorates' in data) || data.governorates is list) &&
+             (!('days' in data) || data.days is list);
+    }
+
+    function isValidReview(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.targetType in ['hotel', 'restaurant', 'attraction', 'tour'] &&
+             data.targetId is string && data.targetId.size() <= 100 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() >= 3 && data.comment.size() <= 1000 &&
+             data.createdAt is string && data.createdAt.size() <= 50;
+    }
+
+    function isValidTourRequest(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.email is string && data.email.size() <= 120 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.destination is string && data.destination.size() <= 100 &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+             (!('groupSize' in data) || data.groupSize is number) &&
+             (!('hours' in data) || data.hours is number) &&
+             (!('tripDate' in data) || (data.tripDate is string && data.tripDate.size() <= 30)) &&
+             (!('status' in data) || data.status in ['pending', 'accepted', 'rejected', 'completed']);
+    }
+
+    // Health check collection for connection testing
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    // User documents
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().uid == userId;
+      allow update: if isOwner(userId) && isValidUser(incoming()) &&
+                    incoming().uid == userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['username', 'displayName', 'photoURL', 'phone', 'updatedAt']);
+      allow delete: if isAdmin();
+
+      // Subcollection: Bookings
+      match /bookings/{bookingId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidBooking(incoming()) && incoming().userId == userId;
+        allow update: if isOwner(userId) && isValidBooking(incoming()) &&
+                      incoming().userId == userId &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Subcollection: Custom Plans
+      match /customPlans/{planId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidCustomPlan(incoming()) && incoming().userId == userId;
+        allow update: if isOwner(userId) && isValidCustomPlan(incoming()) && incoming().userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Global Bookings collection
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidBooking(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) &&
+                    isValidBooking(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin();
+    }
+
+    // Public Reviews
+    match /reviews/{reviewId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isValidReview(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && existing().userId == request.auth.uid &&
+                    isValidReview(incoming()) &&
+                    incoming().userId == request.auth.uid &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment']);
+      allow delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // Tour Requests
+    match /tourRequests/{tourRequestId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidTourRequest(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) &&
+                    isValidTourRequest(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'details']);
+      allow delete: if isAdmin();
+    }
+  }
+}

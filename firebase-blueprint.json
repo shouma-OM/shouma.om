@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents an authenticated user profile in Shouma",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["user", "guide", "hotel_manager", "admin"] },
+        "phone": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Represents a hotel, resort or service booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "hotelId": { "type": "string", "maxLength": 64 },
+        "hotelName": { "type": "string", "maxLength": 120 },
+        "guestName": { "type": "string", "maxLength": 100 },
+        "guestPhone": { "type": "string", "maxLength": 30 },
+        "guestEmail": { "type": "string", "maxLength": 120 },
+        "checkIn": { "type": "string", "maxLength": 30 },
+        "checkOut": { "type": "string", "maxLength": 30 },
+        "nights": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["confirmed", "pending", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "hotelName", "guestName", "totalPrice", "status", "createdAt"]
+    },
+    "CustomPlan": {
+      "title": "CustomPlan",
+      "description": "Custom tourism itinerary created for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "duration": { "type": "number" },
+        "budget": { "type": "string", "maxLength": 50 },
+        "governorates": { "type": "array" },
+        "days": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "duration", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User review for an attraction, hotel or restaurant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "targetType": { "type": "string", "enum": ["hotel", "restaurant", "attraction", "tour"] },
+        "targetId": { "type": "string", "maxLength": 100 },
+        "rating": { "type": "number" },
+        "comment": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "targetType", "targetId", "rating", "comment", "createdAt"]
+    },
+    "TourRequest": {
+      "title": "TourRequest",
+      "description": "Tour guide booking request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "guideId": { "type": "number" },
+        "userName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "groupSize": { "type": "number" },
+        "hours": { "type": "number" },
+        "tripDate": { "type": "string", "maxLength": 30 },
+        "destination": { "type": "string", "maxLength": 100 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "email", "phone", "destination", "createdAt"]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Diagnostic health check document",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "maxLength": 20 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles indexed by Firebase Auth UID"
+    },
+    "/users/{userId}/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Bookings created by a specific user"
+    },
+    "/users/{userId}/customPlans/{planId}": {
+      "schema": { "$ref": "#/entities/CustomPlan" },
+      "description": "Itinerary plans saved by a user"
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Global bookings collection for administration and confirmation lookup"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Public reviews for attractions, hotels, and restaurants"
+    },
+    "/tourRequests/{tourRequestId}": {
+      "schema": { "$ref": "#/entities/TourRequest" },
+      "description": "Tour guide booking requests"
+    },
+    "/test/{testId}": {
+      "schema": { "$ref": "#/entities/TestConnection" },
+      "description": "Health check document for initial connection verification"
+    }
+  }
+}
