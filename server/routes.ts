@@ -1585,13 +1585,61 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     }
   });
 
-  let memMarketingAds: any[] = [];
-  let memMarketingAdNextId = 1;
+  let memMarketingAds: any[] = [
+    {
+      id: 1,
+      title: "Student Companies Exhibition - Injaz Oman",
+      title_ar: "معرض الشركات الطلابية - إنجاز عُمان",
+      description: "March 5-7 | 7:30 PM - 12:00 AM at Oman Convention & Exhibition Centre",
+      description_ar: "٥ - ٧ مارس | ٧:٣٠ مساءً - ١٢:٠٠ صباحاً في مركز عُمان للمعارض والمؤتمرات",
+      image_url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80",
+      link: "https://maps.app.goo.gl/2SFBSzDjqRn9sY216",
+      is_active: true,
+      created_at: new Date()
+    },
+    {
+      id: 2,
+      title: "Magical Jebel Shams & Grand Canyon Adventures",
+      title_ar: "مغامرات جبل شمس والأخدود العظيم الساحرة",
+      description: "Explore the highest peak in Oman, pristine trekking trails, and starry night camping with certified local guides.",
+      description_ar: "استكشف أعلى قمة جبلية في عُمان، مسارات الهايكنج الفريدة، والتخييم تحت النجوم مع مرشدين محليين معتمدين.",
+      image_url: "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=1200&q=80",
+      link: "/hiking",
+      is_active: true,
+      created_at: new Date()
+    },
+    {
+      id: 3,
+      title: "Special 4x4 Desert Safari & Taxis",
+      title_ar: "عروض حصرية على سيارات الدفع الرباعي وتأجير السيارات",
+      description: "Save up to 20% on desert-ready SUVs and local taxi bookings with experienced Omani captains.",
+      description_ar: "خصم حصري يصل إلى ٢٠٪ على مركبات الدفع الرباعي وسيارات الأجرة مع كباتن عمانيين ذوي خبرة.",
+      image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1200&q=80",
+      link: "/taxis",
+      is_active: true,
+      created_at: new Date()
+    },
+    {
+      id: 4,
+      title: "Nizwa Heritage Souq & Historic Castle Tour",
+      title_ar: "جولة سوق نزوى التراثي وقلعة نزوى التاريخية",
+      description: "Experience the authentic scent of Frankincense, traditional Omani Halwa, silver crafts and ancient Omani architecture.",
+      description_ar: "عش أصالة اللبان العماني، الحلوى العمانية الساخنة، صياغة الفضيات وروعة الهندسة المعمارية العمانية العريقة.",
+      image_url: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80",
+      link: "/attractions",
+      is_active: true,
+      created_at: new Date()
+    }
+  ];
+  let memMarketingAdNextId = 5;
 
   app.get("/api/marketing-ads", async (req, res) => {
     try {
       const ads = await db.execute(sql`SELECT * FROM db_marketing_ads WHERE is_active = true ORDER BY id DESC`);
-      res.json(ads.rows);
+      if (ads && ads.rows && ads.rows.length > 0) {
+        return res.json(ads.rows);
+      }
+      res.json(memMarketingAds.filter(a => a.is_active));
     } catch (err: any) {
       res.json(memMarketingAds.filter(a => a.is_active));
     }
@@ -1600,7 +1648,10 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/marketing-ads/all", async (req, res) => {
     try {
       const ads = await db.execute(sql`SELECT * FROM db_marketing_ads ORDER BY id DESC`);
-      res.json(ads.rows);
+      if (ads && ads.rows && ads.rows.length > 0) {
+        return res.json(ads.rows);
+      }
+      res.json(memMarketingAds);
     } catch (err: any) {
       res.json(memMarketingAds);
     }
@@ -1608,6 +1659,19 @@ export async function registerRoutes(httpServer: Server, app: Express) {
 
   app.post("/api/marketing-ads", async (req, res) => {
     const { title, title_ar, description, description_ar, image_url, link, is_active } = req.body;
+    const fallbackAd = {
+      id: memMarketingAdNextId++,
+      title,
+      title_ar,
+      description,
+      description_ar,
+      image_url,
+      link,
+      is_active: is_active ?? true,
+      created_at: new Date()
+    };
+    memMarketingAds.unshift(fallbackAd);
+
     try {
       const result = await db.execute(sql`
         INSERT INTO db_marketing_ads (title, title_ar, description, description_ar, image_url, link, is_active)
@@ -1616,18 +1680,6 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       `);
       res.status(201).json(result.rows[0]);
     } catch (err: any) {
-      const fallbackAd = {
-        id: memMarketingAdNextId++,
-        title,
-        title_ar,
-        description,
-        description_ar,
-        image_url,
-        link,
-        is_active: is_active ?? true,
-        created_at: new Date()
-      };
-      memMarketingAds.unshift(fallbackAd);
       res.status(201).json(fallbackAd);
     }
   });
