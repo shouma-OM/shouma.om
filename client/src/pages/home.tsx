@@ -54,6 +54,49 @@ import mughsailBeachImg from "@/assets/mughsail-beach.png";
 import muscatNightsImg from "@/assets/muscat-nights.png";
 const injazEventImg = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800";
 
+const defaultFeaturedAds = [
+  {
+    id: 1,
+    title: "Student Companies Exhibition - Injaz Oman",
+    title_ar: "معرض الشركات الطلابية - إنجاز عُمان",
+    description: "March 5-7 | 7:30 PM - 12:00 AM at Oman Convention & Exhibition Centre",
+    description_ar: "٥ - ٧ مارس | ٧:٣٠ مساءً - ١٢:٠٠ صباحاً في مركز عُمان للمعارض والمؤتمرات",
+    image_url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80",
+    link: "https://maps.app.goo.gl/2SFBSzDjqRn9sY216",
+    is_active: true
+  },
+  {
+    id: 2,
+    title: "Magical Jebel Shams & Grand Canyon Adventures",
+    title_ar: "مغامرات جبل شمس والأخدود العظيم الساحرة",
+    description: "Explore the highest peak in Oman, pristine trekking trails, and starry night camping with certified local guides.",
+    description_ar: "استكشف أعلى قمة جبلية في عُمان، مسارات الهايكنج الفريدة، والتخييم تحت النجوم مع مرشدين محليين معتمدين.",
+    image_url: "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=1200&q=80",
+    link: "/hiking",
+    is_active: true
+  },
+  {
+    id: 3,
+    title: "Special 4x4 Desert Safari & Taxis",
+    title_ar: "عروض حصرية على سيارات الدفع الرباعي وتأجير السيارات",
+    description: "Save up to 20% on desert-ready SUVs and local taxi bookings with experienced Omani captains.",
+    description_ar: "خصم حصري يصل إلى ٢٠٪ على مركبات الدفع الرباعي وسيارات الأجرة مع كباتن عمانيين ذوي خبرة.",
+    image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1200&q=80",
+    link: "/taxis",
+    is_active: true
+  },
+  {
+    id: 4,
+    title: "Nizwa Heritage Souq & Historic Castle Tour",
+    title_ar: "جولة سوق نزوى التراثي وقلعة نزوى التاريخية",
+    description: "Experience the authentic scent of Frankincense, traditional Omani Halwa, silver crafts and ancient Omani architecture.",
+    description_ar: "عش أصالة اللبان العماني، الحلوى العمانية الساخنة، صياغة الفضيات وروعة الهندسة المعمارية العمانية العريقة.",
+    image_url: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80",
+    link: "/attractions",
+    is_active: true
+  }
+];
+
 const iconMap: Record<string, React.ReactNode> = {
   MapPin: <MapPin className="w-8 h-8" />,
   Building2: <Building2 className="w-8 h-8" />,
@@ -162,33 +205,40 @@ export default function HomePage() {
     }
   });
 
-  // Fetch active marketing ads
-  const { data: ads = [] } = useQuery<any[]>({
+  // Fetch active marketing ads with automatic fallback to high-res featured ads
+  const { data: rawAds = [] } = useQuery<any[]>({
     queryKey: ["/api/marketing-ads"],
     queryFn: async () => {
-      const resp = await fetch("/api/marketing-ads");
-      if (!resp.ok) return [];
-      return resp.json();
+      try {
+        const resp = await fetch("/api/marketing-ads");
+        if (!resp.ok) return [];
+        return await resp.json();
+      } catch {
+        return [];
+      }
     }
   });
 
+  const displayAds = Array.isArray(rawAds) && rawAds.length > 0 ? rawAds : defaultFeaturedAds;
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
-    if (ads.length <= 1) return;
+    if (displayAds.length <= 1 || isCarouselPaused) return;
     const interval = setInterval(() => {
-      setCurrentAdIndex((prev) => (prev + 1) % ads.length);
-    }, 5000);
+      setCurrentAdIndex((prev) => (prev + 1) % displayAds.length);
+    }, 4500);
     return () => clearInterval(interval);
-  }, [ads]);
+  }, [displayAds.length, isCarouselPaused]);
 
   const handleNextAd = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (ads.length > 0) {
-      setCurrentAdIndex((prev) => (prev + 1) % ads.length);
+    if (displayAds.length > 0) {
+      setCurrentAdIndex((prev) => (prev + 1) % displayAds.length);
     }
   };
 
@@ -197,8 +247,45 @@ export default function HomePage() {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (ads.length > 0) {
-      setCurrentAdIndex((prev) => (prev - 1 + ads.length) % ads.length);
+    if (displayAds.length > 0) {
+      setCurrentAdIndex((prev) => (prev - 1 + displayAds.length) % displayAds.length);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        // Swiped left
+        if (isRTL) {
+          handlePrevAd();
+        } else {
+          handleNextAd();
+        }
+      } else {
+        // Swiped right
+        if (isRTL) {
+          handleNextAd();
+        } else {
+          handlePrevAd();
+        }
+      }
+    }
+    setTouchStartX(null);
+  };
+
+  const handleAdClick = (link?: string) => {
+    if (!link) return;
+    if (link.startsWith("http://") || link.startsWith("https://")) {
+      window.open(link, "_blank", "noopener,noreferrer");
+    } else {
+      setLocation(link);
     }
   };
 
@@ -350,148 +437,128 @@ export default function HomePage() {
       </section>
 
       {/* Dynamic Scrolling and Interactive Ads Carousel */}
-      <section className="py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-amber-900/10 via-slate-800/5 to-amber-900/10 select-none">
-        <div className="max-w-7xl mx-auto relative group/carousel">
-          {ads.length === 0 ? (
-            // Fallback default ad if empty
-            <a
-              href="https://maps.app.goo.gl/2SFBSzDjqRn9sY216"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="banner-featured-event"
-              className="w-full block group relative overflow-hidden rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-1"
-            >
-              <div className="relative h-48 sm:h-64 md:h-72">
-                <div 
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{ backgroundImage: `url('${injazEventImg}')` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                <div className={`absolute inset-0 flex flex-col justify-center p-6 sm:p-8 md:p-10 ${isRTL ? 'text-right items-end' : 'text-left items-start'}`}>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white mb-2">
-                    {isRTL ? 'معرض الشركات الطلابية - إنجاز عُمان' : 'Student Companies Exhibition - Injaz Oman'}
-                  </h2>
-                  <p className="text-white/80 text-xs sm:text-sm max-w-md">
-                    {isRTL ? '٥ - ٧ مارس | مركز المعارض' : 'March 5-7 | Exhibition Centre'}
-                  </p>
+      <section className="py-6 sm:py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-amber-900/10 via-slate-800/5 to-amber-900/10 select-none">
+        <div 
+          className="max-w-7xl mx-auto relative group/carousel"
+          onMouseEnter={() => setIsCarouselPaused(true)}
+          onMouseLeave={() => setIsCarouselPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 border border-white/10 bg-slate-900">
+            <AnimatePresence mode="wait">
+              {displayAds.map((ad, idx) => {
+                if (idx !== (currentAdIndex % displayAds.length)) return null;
+
+                return (
+                  <motion.div
+                    key={ad.id || idx}
+                    initial={{ opacity: 0, x: isRTL ? -40 : 40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: isRTL ? 40 : -40 }}
+                    transition={{ duration: 0.45, ease: "easeInOut" }}
+                    onClick={() => handleAdClick(ad.link)}
+                    className="w-full block relative overflow-hidden h-60 sm:h-72 md:h-80 cursor-pointer group"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        handleAdClick(ad.link);
+                      }
+                    }}
+                  >
+                    {/* Background Image */}
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-105"
+                      style={{ backgroundImage: `url('${ad.image_url}')` }}
+                    />
+                    {/* Shading overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/20 md:bg-gradient-to-r md:from-black/95 md:via-black/60 md:to-transparent" />
+                    
+                    {/* Live/Ad Tag & Slide Index */}
+                    <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                      <span className="px-3 py-1 bg-amber-500 text-slate-950 text-[10px] sm:text-xs font-black tracking-wide rounded-full shadow-lg">
+                        {t('promoted') || (isRTL ? "إعلان مميز" : "Promoted")}
+                      </span>
+                      <span className="px-2.5 py-1 bg-black/50 text-white/90 text-[10px] sm:text-xs font-semibold rounded-full backdrop-blur-sm border border-white/15">
+                        {idx + 1} / {displayAds.length}
+                      </span>
+                    </div>
+
+                    {/* Content */}
+                    <div className={`absolute inset-0 flex flex-col justify-center p-6 sm:p-10 md:p-12 z-10 ${isRTL ? 'text-right items-end' : 'text-left items-start'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
+                        <span className="text-amber-400 text-xs sm:text-sm font-black uppercase tracking-wider">
+                          {t('shoumaSpotlight') || (isRTL ? "إضاءة شومة السياحية" : "Shouma Spotlight")}
+                        </span>
+                      </div>
+
+                      <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white mb-2 leading-tight drop-shadow-md font-sans max-w-2xl">
+                        {language === 'ar' ? (ad.title_ar || ad.title) : (ad.title || ad.title_ar)}
+                      </h2>
+
+                      <p className="text-white/90 text-xs sm:text-sm md:text-base max-w-xl mb-4 leading-relaxed font-sans drop-shadow">
+                        {language === 'ar' ? (ad.description_ar || ad.description) : (ad.description || ad.description_ar)}
+                      </p>
+
+                      {ad.link && (
+                        <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 group-hover:text-amber-200 transition-colors bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 shadow-md">
+                          <span>{t('exploreMoreNow') || (isRTL ? "استكشف الآن" : "Explore Now")}</span>
+                          <ChevronRight className={`w-4 h-4 transform transition-transform ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'}`} />
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+
+            {/* Navigation Arrows (Always visible and interactive) */}
+            {displayAds.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrevAd}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-amber-500 text-white hover:text-slate-950 backdrop-blur-md flex items-center justify-center transition-all shadow-lg hover:scale-110 border border-white/20 cursor-pointer"
+                  aria-label="Previous Slide"
+                  title={isRTL ? "السابق" : "Previous"}
+                >
+                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextAd}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-amber-500 text-white hover:text-slate-950 backdrop-blur-md flex items-center justify-center transition-all shadow-lg hover:scale-110 border border-white/20 cursor-pointer"
+                  aria-label="Next Slide"
+                  title={isRTL ? "التالي" : "Next"}
+                >
+                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+
+                {/* Clickable Indicator Dots */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10">
+                  {displayAds.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCurrentAdIndex(dotIdx);
+                      }}
+                      className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        dotIdx === (currentAdIndex % displayAds.length) 
+                          ? "bg-amber-400 w-7" 
+                          : "bg-white/40 hover:bg-white/80 w-2.5"
+                      }`}
+                      aria-label={`Go to slide ${dotIdx + 1}`}
+                    />
+                  ))}
                 </div>
-              </div>
-            </a>
-          ) : (
-            <div className="relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500">
-              <AnimatePresence mode="wait">
-                {ads.map((ad, idx) => {
-                  if (idx !== currentAdIndex) return null;
-                  
-                  // Check if the link is external or internal
-                  const isExternal = ad.link?.startsWith("http");
-                  const ContainerTag = ad.link ? "a" : "div";
-                  const containerProps = ad.link ? {
-                    href: ad.link,
-                    target: isExternal ? "_blank" : undefined,
-                    rel: isExternal ? "noopener noreferrer" : undefined,
-                  } : {};
-
-                  return (
-                    <motion.div
-                      key={ad.id}
-                      initial={{ opacity: 0, x: isRTL ? -50 : 50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: isRTL ? 50 : -50 }}
-                      transition={{ duration: 0.5, ease: "easeInOut" }}
-                    >
-                      <ContainerTag
-                        {...containerProps}
-                        className="w-full block relative overflow-hidden h-56 sm:h-64 md:h-80 cursor-pointer group"
-                      >
-                        {/* Background Image */}
-                        <div 
-                          className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-105"
-                          style={{ backgroundImage: `url('${ad.image_url}')` }}
-                        />
-                        {/* Shading overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/15 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent" />
-                        
-                        {/* Live/Ad Tag */}
-                        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                          <span className="px-3 py-1 bg-amber-500/90 text-white text-[10px] sm:text-xs font-black tracking-wide rounded-full shadow-lg animate-pulse">
-                            {t('promoted')}
-                          </span>
-                        </div>
-
-                        {/* Content */}
-                        <div className={`absolute inset-0 flex flex-col justify-center p-6 sm:p-10 md:p-12 z-10 ${isRTL ? 'text-right items-end' : 'text-left items-start'}`}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
-                            <span className="text-amber-400 text-xs sm:text-sm font-black uppercase tracking-wider">
-                              {t('shoumaSpotlight')}
-                            </span>
-                          </div>
-
-                          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white mb-2 leading-tight drop-shadow-md font-sans">
-                            {language === 'ar' ? (ad.title_ar || ad.title) : (ad.title || ad.title_ar)}
-                          </h2>
-
-                          <p className="text-white/85 text-xs sm:text-sm md:text-base max-w-xl mb-4 leading-relaxed font-sans drop-shadow">
-                            {language === 'ar' ? (ad.description_ar || ad.description) : (ad.description || ad.description_ar)}
-                          </p>
-
-                          {ad.link && (
-                            <span className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 group-hover:text-amber-200 transition-colors bg-white/10 backdrop-blur-sm px-3.5 py-2 rounded-full border border-white/10">
-                              {t('exploreMoreNow')}
-                              <ChevronRight className={`w-3.5 h-3.5 transform transition-transform ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'}`} />
-                            </span>
-                          )}
-                        </div>
-                      </ContainerTag>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-
-              {/* Navigation Arrows */}
-              {ads.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handlePrevAd}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm flex items-center justify-center transition-all opacity-0 group-hover/carousel:opacity-100 hover:scale-105 border border-white/10"
-                    aria-label="Previous Slide"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNextAd}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm flex items-center justify-center transition-all opacity-0 group-hover/carousel:opacity-100 hover:scale-105 border border-white/10"
-                    aria-label="Next Slide"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-
-                  {/* Indicator Dots */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
-                    {ads.map((_, dotIdx) => (
-                      <button
-                        key={dotIdx}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentAdIndex(dotIdx);
-                        }}
-                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                          dotIdx === currentAdIndex 
-                            ? "bg-amber-400 w-6" 
-                            : "bg-white/45 hover:bg-white/70"
-                        }`}
-                        aria-label={`Go to slide ${dotIdx + 1}`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </section>
 
